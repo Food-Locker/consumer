@@ -1,6 +1,9 @@
 import { useState } from 'react';
 import useSeatStore from '../store/seatStore';
+import useUser from '../hooks/useUser';
 import Toast from './Toast';
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001';
 
 const SeatSelectionModal = ({ isOpen, onClose, required = false }) => {
   const [seatBlock, setSeatBlock] = useState('');
@@ -11,6 +14,7 @@ const SeatSelectionModal = ({ isOpen, onClose, required = false }) => {
   const [toastType, setToastType] = useState('success');
   const [assignedLocker, setAssignedLocker] = useState(null);
   const { setSeatAndLocker } = useSeatStore();
+  const { firebaseUser } = useUser(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -21,53 +25,72 @@ const SeatSelectionModal = ({ isOpen, onClose, required = false }) => {
       return;
     }
 
+    if (!firebaseUser?.uid) {
+      setError('로그인이 필요합니다.');
+      setToastMessage('로그인이 필요합니다.');
+      setToastType('error');
+      setShowToast(true);
+      return;
+    }
+
     setLoading(true);
 
     try {
-      const response = await fetch('http://localhost:3000/api/lockers/assign', {
+      const response = await fetch(`${API_BASE_URL}/api/lockers/assign`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ seatBlock: seatBlock.trim() }),
+        body: JSON.stringify({ 
+          seatBlock: seatBlock.trim(),
+          userId: firebaseUser.uid
+        }),
       });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || '근처에 빈 락커가 없습니다.');
+        const errorData = await response.json();
+        throw new Error(errorData.error || '락커 배정에 실패했습니다.');
       }
 
-      const data = await response.json();
+      const result = await response.json();
       
-      // 성공 시 락커 정보 저장
-      setSeatAndLocker(
-        seatBlock.trim(),
-        data.lockerName || data.name || '락커',
-        data.lockerLocation || data.location || ''
-      );
+      // API 응답 구조: { success: true, data: { lockerId, location, zone, status } }
+      if (result.success && result.data) {
+        const { lockerId, location, zone } = result.data;
+        
+        // 락커 정보를 seatStore에 저장
+        setSeatAndLocker(
+          seatBlock.trim(),
+          lockerId || '락커',
+          location || ''
+        );
 
-      // 배정된 락커 정보를 상태에 저장하여 표시
-      setAssignedLocker({
-        name: data.lockerName || data.name || '락커',
-        location: data.lockerLocation || data.location || ''
-      });
+        // 배정된 락커 정보를 상태에 저장하여 표시
+        setAssignedLocker({
+          lockerId: lockerId,
+          location: location,
+          zone: zone
+        });
+        
+        // 성공 토스트 표시
+        setToastMessage(
+          `락커 배정 완료!\n락커 번호: ${lockerId}\n위치: ${location}`
+        );
+        setToastType('success');
+        setShowToast(true);
 
-      // 성공 토스트 표시
-      setToastMessage(
-        `락커 배정 완료!\n${data.lockerName || data.name || '락커'} - ${data.lockerLocation || data.location || ''}`
-      );
-      setToastType('success');
-      setShowToast(true);
-
-      // 2초 후 모달 닫기
-      setTimeout(() => {
-        onClose();
-        setAssignedLocker(null);
-        setSeatBlock('');
-      }, 2000);
-    } catch (err) {
-      setError(err.message || '근처에 빈 락커가 없습니다.');
-      setToastMessage(err.message || '근처에 빈 락커가 없습니다.');
+        // 2초 후 모달 닫기
+        setTimeout(() => {
+          onClose();
+          setAssignedLocker(null);
+          setSeatBlock('');
+        }, 2000);
+      }
+    } catch (error) {
+      console.error('락커 배정 오류:', error);
+      const errorMessage = error.message || '락커 배정에 실패했습니다.';
+      setError(errorMessage);
+      setToastMessage(errorMessage);
       setToastType('error');
       setShowToast(true);
     } finally {
@@ -99,9 +122,9 @@ const SeatSelectionModal = ({ isOpen, onClose, required = false }) => {
             <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-lg">
               <p className="text-sm font-semibold text-green-800 mb-1">✓ 락커 배정 완료</p>
               <p className="text-sm text-green-700">
-                <span className="font-medium">{assignedLocker.name}</span>
+                <span className="font-medium">락커 번호: {assignedLocker.lockerId}</span>
                 {assignedLocker.location && (
-                  <> - <span>{assignedLocker.location}</span></>
+                  <> - <span>위치: {assignedLocker.location}</span></>
                 )}
               </p>
             </div>

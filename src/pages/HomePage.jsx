@@ -9,7 +9,7 @@ import SeatSelectionModal from '../components/SeatSelectionModal';
 
 const HomePage = () => {
   const { getItemCount, addItem } = useCartStore();
-  const { hasLocker } = useSeatStore();
+  const { lockerName, lockerLocation } = useSeatStore();
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [categories, setCategories] = useState([]);
   const [allItems, setAllItems] = useState([]);
@@ -17,11 +17,15 @@ const HomePage = () => {
   const [showSeatModal, setShowSeatModal] = useState(false);
 
   // 처음 진입 시 락커가 배정되지 않았다면 좌석 선택 모달 표시
+  // lockerName과 lockerLocation이 모두 있어야 락커가 배정된 것으로 간주
   useEffect(() => {
-    if (!hasLocker()) {
+    const hasLocker = !!(lockerName && lockerLocation);
+    if (!hasLocker) {
       setShowSeatModal(true);
+    } else {
+      setShowSeatModal(false);
     }
-  }, []);
+  }, [lockerName, lockerLocation]);
 
   // MongoDB에서 모든 카테고리 가져오기 (모든 stadium의 categories 수집)
   useEffect(() => {
