@@ -3,14 +3,25 @@ import { Link } from 'react-router-dom';
 import { Search, Settings, Bell, ChevronRight, Plus } from 'lucide-react';
 import { api } from '../lib/mongodb';
 import useCartStore from '../store/cartStore';
+import useSeatStore from '../store/seatStore';
 import { getImagePath, getCategoryImage } from '../utils/imageUtils';
+import SeatSelectionModal from '../components/SeatSelectionModal';
 
 const HomePage = () => {
   const { getItemCount, addItem } = useCartStore();
+  const { hasLocker } = useSeatStore();
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [categories, setCategories] = useState([]);
   const [allItems, setAllItems] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [showSeatModal, setShowSeatModal] = useState(false);
+
+  // 처음 진입 시 락커가 배정되지 않았다면 좌석 선택 모달 표시
+  useEffect(() => {
+    if (!hasLocker()) {
+      setShowSeatModal(true);
+    }
+  }, []);
 
   // MongoDB에서 모든 카테고리 가져오기 (모든 stadium의 categories 수집)
   useEffect(() => {
@@ -279,6 +290,13 @@ const HomePage = () => {
           </span>
         </Link>
       )}
+
+      {/* 좌석 선택 모달 */}
+      <SeatSelectionModal 
+        isOpen={showSeatModal}
+        onClose={() => setShowSeatModal(false)}
+        required={true}
+      />
     </div>
   );
 };
